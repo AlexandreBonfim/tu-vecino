@@ -1,0 +1,85 @@
+generator client {
+  provider     = "prisma-client-js"
+  output   = "../generated/prisma"
+  moduleFormat    = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum Language {
+  es
+  en
+}
+
+enum ReputationTier {
+  NEWCOMER
+  TRUSTED
+  VECINO    // established community member
+  GUARDIAN  // top tier, earns moderation privileges
+}
+
+enum PinCategory {
+  SAFETY_INCIDENT
+  TRAFFIC
+  POLICE_CONTROL
+  EVENT
+  LOST_FOUND
+  CIVIC_ISSUE    // potholes, broken streetlights, etc.
+  EXPAT_MEETUP
+  WEATHER_HAZARD
+}
+
+enum ReportSource {
+  APP
+  // WHATSAPP stubbed — full implementation is a later phase
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id                  String         @id @default(uuid())
+  email               String?        @unique
+  passwordHash        String?        // null for phone-only (WhatsApp OR phone onboarding) users
+  phoneNumber         String?        @unique
+  displayName         String?
+  preferredLanguage   Language       @default(es)
+  reputationTier      ReputationTier @default(NEWCOMER)
+  reputationScore     Int            @default(0)
+  onboardingCompleted Boolean        @default(false)
+  // Home neighbourhood centre — used to default map view and scope notifications.
+  homeLat             Float?
+  homeLng             Float?
+  isActive            Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  pins Pin[]
+
+  @@map("users")
+}
+
+model Pin {
+  id           String       @id @default(uuid())
+  category     PinCategory
+  // Denormalised lat/lng for cheap map reads.
+  // The PostGIS geography column is added via a raw SQL migration below.
+  lat          Float
+  lng          Float
+  intensity    Int          @default(1) // 1-3 tap selector: low / medium / high
+  source       ReportSource @default(APP)
+  photoUrl     String?
+  confirmCount Int          @default(0) // "still there" taps
+  disputeCount Int          @default(0) // "not here" taps
+  isActive     Boolean      @default(true)
+  expiresAt    DateTime
+  createdAt    DateTime     @default(now())
+
+  authorId String?
+  author   User?   @relation(fields: [authorId], references: [id])
+
+  @@map("pins")
+}
